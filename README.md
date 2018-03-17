@@ -17,4 +17,5 @@ A racket implementation of conway's game of life and applying it to have some fu
 * Enriched simlulator experience
 * Insitu grid editing options
 * `grid->rle` converter?
-* Football and Credits still remain a mystery
+* Credits: Thinking of reverse-timing the credits... whatyasay?
+* Football still remains a mystery
