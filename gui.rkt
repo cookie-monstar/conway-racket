@@ -1,9 +1,9 @@
 #lang racket
-(require 2htdp/image "conway.rkt")
+(require 2htdp/universe 2htdp/image "conway.rkt")
 (provide (all-defined-out))
 
-(define live (rectangle 8 8 "solid" "green"))
-(define dead (rectangle 8 8 "solid" "black"))
+(define live (rectangle 8 8 "solid" "black"))
+(define dead (rectangle 8 8 "outline" "black"))
 
 (define (list-draw x y lst)
   (foldr (lambda (a b) (overlay/xy a x y b)) (rectangle 0 0 100 "red") lst))

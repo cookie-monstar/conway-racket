@@ -6,6 +6,5 @@ A racket implementation of conway's game of life and applying it to have some fu
 * Function for efficiently translating the pattern on grid to other places
 * Enriched simlulator experience
 * Insitu grid editing options
-* `grid->rle` converter?
 * Credits: Thinking of reverse-timing the credits... whatyasay?
 * Football still remains a mystery
