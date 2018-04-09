@@ -31,8 +31,6 @@
 
 (define (grid-next grid)
   (map
-    (lambda
-      (g n)
-      (map conway-god g n))
+    (lambda (g n) (map conway-god g n))
     grid
     (get-neighbours grid)))

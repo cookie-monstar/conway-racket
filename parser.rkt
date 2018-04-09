@@ -1,7 +1,7 @@
 #lang racket
 (provide (all-defined-out))
 
-(define (rle->string rle)
+(define (rle->grid rle)
   (define x 0)
   (define t 0)
   (reverse (map reverse (foldl
@@ -21,24 +21,12 @@
                          '(())
                          (map char->integer (string->list rle))))))
 
-(define (string->grid str)
-  (foldr
-   (lambda
-       (x y)
-     (cond [(eq? x #\.) (cons '() y)]
-           [(eq? x #\1) (cons (cons 1 (car y)) (cdr y))]
-           [(eq? x #\0) (cons (cons 0 (car y)) (cdr y))]
-           [else y]))
-   '(())
-   (string->list str)))
-
-(define (list-expander bait n)
+(define (list-expand bait n)
   (lambda (lst) (append lst (make-list (- n (length lst)) bait))))
-
 (define (grid-expand grid m n)
   (begin
-    (set! grid (map (list-expander 0 m) grid))
-    (set! grid ((list-expander (make-list m 0) n) grid))
+    (set! grid (map (list-expand 0 m) grid))
+    (set! grid ((list-expand (make-list m 0) n) grid))
     grid))
 
 (define grid->rle ((lambda ()

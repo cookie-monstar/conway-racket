@@ -1,43 +1,51 @@
 #lang racket
-(require 2htdp/universe "conway.rkt" "gui.rkt")
+(require 2htdp/universe "conway.rkt" "render.rkt" "parser.rkt" "hangar.rkt")
 
-(define world
-  '(#t
-    (0 1 0 0 0 0 0 0 0 0 0 0)
-    (0 0 1 0 0 0 0 0 0 0 0 0)
-    (1 1 1 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)
-    (0 0 0 0 0 0 0 0 0 0 0 0)))
+(define grid (grid-expand (rle->grid (car (dict-ref hangar "glider"))) 12 12))
 
-(define (grid-tick world)
-	(cons (car world) (if (car world) (grid-next (cdr world)) (cdr world))))
+(define play-state #t)
+(define file-state #f)
+
+(define (tick-expr world)
+	(if play-state (set! grid (grid-next grid)) (void))
+		world)
 
 (define (replace l n m)
 	(list-set l n (m (list-ref l n))))
 
-(define (operation world x y type)
-	(if (mouse=? type "button-down")
-	(cons (car world) (replace (cdr world) (quotient y 8) (lambda (R) (replace R (quotient x 8) (lambda (x) (- 1 x))))))
-	world))
+(define (mouse-expr world x y type)
+	(if (mouse=? type "button-down") (set! grid (replace grid (quotient y 8) (lambda (R) (replace R (quotient x 8) (lambda (x) (- 1 x)))))) (void))
+	world)
 
 (define (key-expr world type)
-	(if (key=? type "p")
-	(list-set world 0 (not (car world)))
-	world))
+	(cond
+		[(key=? type "p") (set! play-state (not play-state))]
+		[(key=? type "o") (set! file-state (not file-state))])
+	world)
 
-(define (world-draw world)
-	(grid-draw (cdr world)))
+(define (draw-expr world)
+	(grid-draw grid))
 
-(big-bang
-    world
-  (on-tick grid-tick 1)
-  (on-mouse operation)
-  (on-key key-expr)
-  (to-draw world-draw))
+(define name-expr "Conway's Game of Life Simulator")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(display "Welcome to Simulator!\n")
+(display "Instructions:\n")
+(display " * Press p to toggle the simulation between play/pause\n")
+(display " * Press o to import a patch from hanger\n")
+(display " * Click a cell to toggle between live/dead\n")
+(display "Enter \"Alelelele\" and hit enter to enter: ")
+(define input (read))
+(if (equal? input 'Alelelele)
+	(begin
+		(big-bang (void)
+  		(on-tick tick-expr 0.25)
+  		(on-mouse mouse-expr)
+			(on-key key-expr)
+  		(to-draw draw-expr)
+			(name name-expr)))
+	(begin
+		(display "U typed \"")
+		(display input)
+		(display "\". Ur mom gay.\n")))
