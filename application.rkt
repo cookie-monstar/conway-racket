@@ -1,7 +1,7 @@
 #lang racket
 (require 2htdp/universe "conway.rkt" "render.rkt" "parser.rkt" "hangar.rkt")
 
-(define grid (grid-expand (rle->grid (car (dict-ref hangar "glider"))) 12 12))
+(define grid (grid-expand (rle->grid (car (dict-ref hangar "gosper glider gun"))) 64 64))
 
 (define play-state #t)
 (define file-state #f)
@@ -14,7 +14,7 @@
 	(list-set l n (m (list-ref l n))))
 
 (define (mouse-expr world x y type)
-	(if (mouse=? type "button-down") (set! grid (replace grid (quotient y 8) (lambda (R) (replace R (quotient x 8) (lambda (x) (- 1 x)))))) (void))
+	(if (mouse=? type "button-down") (set! grid (replace grid (quotient y size) (lambda (R) (replace R (quotient x size) (lambda (x) (- 1 x)))))) (void))
 	world)
 
 (define (key-expr world type)
