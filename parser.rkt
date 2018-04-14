@@ -1,6 +1,5 @@
 #lang racket
 (provide (all-defined-out))
-
 (define (rle->grid rle)
   (define x 0)
   (define t 0)
@@ -20,7 +19,6 @@
                              [else l]))
                          '(())
                          (map char->integer (string->list rle))))))
-
 (define (list-expand bait n)
   (lambda (lst) (append lst (make-list (- n (length lst)) bait))))
 (define (grid-expand grid m n)
@@ -28,7 +26,6 @@
     (set! grid (map (list-expand 0 m) grid))
     (set! grid ((list-expand (make-list m 0) n) grid))
     grid))
-
 (define grid->rle ((lambda ()
 	(define (list->rle lst)
 		(define n 1)
