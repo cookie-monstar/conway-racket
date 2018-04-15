@@ -1,0 +1,1 @@
+("6.11" ("e3cb959be1c27de84ae376a5d03a8a88b5a4596c" . "eddb47177fcdae6b4d4e71bcba3a8e405ee7c956") #"/home/poorvi/git/conway-racket/list-comprehension.rkt" (collects #"2htdp" #"image.rkt") (collects #"2htdp" #"universe.rkt") (collects #"errortrace" #"errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))
