@@ -1,1 +1,0 @@
-("6.11" ("dd1cf2fdffa8c6d5b9e6e4a42687965e9c914281" . "81d6971ca87b339ad65ba79f0eef5e8fa25374d9") #"/home/poorvi/git/conway-racket/parser.rkt" #"/home/poorvi/git/conway-racket/render.rkt" (collects #"errortrace" #"errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))

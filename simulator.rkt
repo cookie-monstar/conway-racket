@@ -1,8 +1,9 @@
 #lang racket
 (require 2htdp/universe 2htdp/image "conway.rkt" "render.rkt" "parser.rkt" "hangar.rkt")
+
 (define grid (grid-expand (rle->grid (car (dict-ref hangar "gosper glider gun"))) 64 64))
+
 (define play-state #t)
-(define file-state #f)
 (define (tick-expr world)
 	(if play-state (set! grid (grid-next grid)) (void))
 		world)
@@ -10,7 +11,6 @@
 	(list-set l n (m (list-ref l n))))
 
 (define bool #f) 
-
 (define (mouse-expr world x y type)
   (set! coords (list x y))
   (if bool
@@ -28,7 +28,6 @@
 (define (show-hangar)
 	(void (map (lambda (x) (display x) (display ".") (displayln (car (list-ref hangar x)))) (range (length hangar)))))
 
-  
 (define patch #f)
 (define coords '(0 0))
 
