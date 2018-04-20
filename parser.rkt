@@ -2,19 +2,20 @@
 (provide (all-defined-out))
 (define (rle->grid rle)
   (define x 0)
-  (define t 0)
   (reverse (map reverse (foldl
                          (lambda (c l)
                            (cond
                              [(= 98 c) (cons (if
                                               (> x 0)
-                                              (append (make-list (begin (set! t x) (set! x 0) t) 0) (car l))
+                                              (append (make-list (begin0 x (set! x 0)) 0) (car l))
                                               (cons 0 (car l))) (cdr l))]
                              [(= 111 c) (cons (if
                                                (> x 0)
-                                               (append (make-list (begin (set! t x) (set! x 0) t) 1) (car l))
+                                               (append (make-list (begin0 x (set! x 0)) 1) (car l))
                                                (cons 1 (car l))) (cdr l))]
-                             [(= 36 c) (cons '() l)]
+                             [(= 36 c) (if (> x 0)
+                                           (append (make-list (begin0 x (set! x 0)) '()) l)
+                                           (cons '() l))]
                              [(and (> c 47) (< c 58)) (begin (set! x (+ (- c 48) (* 10 x))) l)]
                              [else l]))
                          '(())
