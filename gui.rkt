@@ -1,5 +1,52 @@
 #lang racket
-(require racket/gui (prefix-in htdp: 2htdp/image) "conway.rkt" "parser.rkt" "hangar.rkt")
+(require racket/gui (prefix-in htdp: 2htdp/image) "parser.rkt" "hangar.rkt")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (grid-god l c u)
+  (lambda (g n)
+    (cond [(> l n) 0]
+          [(= c n) 1]
+          [(< u n) 0]
+          [else g])))
+(define (grid-add A B)
+  (map (lambda (a b) (map (lambda (x y) (+ x y)) a b)) A B))
+(define conway-god (grid-god 2 3 3))
+(define (grid-or A B)
+  (map (lambda (a b) (map (lambda (x y) (cond ((and (= x 1) (= y 1)) 1)
+                                              ((or (and (= x 1) (= y 1)) (and (= x 0) (= y 0))) 1)
+                                              ((and (= x 0) (= y 0)) 0)))
+                          a b)) A B))
+(define (grid-n grid)
+  (append (cdr grid) (list (car grid))))
+(define (grid-s grid)
+  (cons (last grid) (take grid (- (length grid) 1))))
+(define (grid-w grid)
+  (map grid-n grid))
+(define (grid-e grid)
+  (map grid-s grid))
+(define (grid-move grid x y)
+  (set! grid (append (drop grid (- (length grid) y)) (take grid (- (length grid) y))))
+  (map (lambda (row) (append (drop row (- (length row) x)) (take row (- (length row) x)))) grid))
+(define grid-type 0)
+(define (get-toroid-neighbours grid)
+  (define lst (list grid))
+  (begin
+    (set! lst (append* (map (lambda (g) (list g (grid-w g) (grid-e g))) lst)))
+    (set! lst (append* (map (lambda (g) (list g (grid-n g) (grid-s g))) lst)))
+    (foldr grid-add (cadr lst) (cddr lst))))
+
+(define (get-neighbours grid)
+  (cond
+    [(eq? grid-type 0) (get-toroid-neighbours grid)]
+    [(eq? grid-type 1) (map cdr (cdr (get-toroid-neighbours (cons (make-list (+ 1 (length (car grid))) 0) (map (lambda (x) (cons 0 x)) grid)))))]))
+
+(define (grid-next grid)
+  (map
+   (lambda (g n) (map conway-god g n))
+   grid
+   (get-neighbours grid)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cell-size 6)
+(define grid-size '(128 . 128))
 (define frame
   (new frame%
        [label "Conway's game of life"]
@@ -16,7 +63,7 @@
        [min-width 768]
        [min-height 768]))
 (define panel-right
-  (new panel%
+  (new vertical-panel%
        [parent panels]
        [min-width 256]
        [min-height 768]))
@@ -27,25 +74,47 @@
        [parent panel-right]
        [label "Paused"]
        [callback (lambda (button event) (set! play-state (not play-state))
-                   (send play-button set-label (if play-state "Playing" "Paused")))]))
+                   (send play-button set-label
+                         (if play-state
+                             (begin
+                               (send timer start 1)
+                               "Playing")
+                             (begin
+                               (send timer stop)
+                               "Paused"))))]))
+(define grid-button
+  (new choice%
+       [parent panel-right]
+       [label "Grid type: "]
+       [choices (list "Closed" "Open")]
+       [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (draw-canvas canvas dc play-state)
-  (if play-state
-      (begin
-        (displayln "Wow")
-        (map (lambda (row)
-               (map (lambda (col)
-                      (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
-                      (send dc draw-rectangle (* 12 col) (* 12 row) 12 12))
-                    (range (length (car grid)))))
-             (range (length grid)))
-        (set! grid (grid-next grid)))
-      (void)))
+(define (canvas-draw dc)
+	(define grid-new (grid-next grid))
+    (map (lambda (row)
+           (map (lambda (col)
+                       (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
+                       (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))
+                (range (car grid-size))))
+         (range (cdr grid-size)))
+    (set! grid grid-new))
+(define (canvas-swap dc)
+	(define grid-new (grid-next grid))
+    (map (lambda (row)
+           (map (lambda (col)
+		          (cond
+				       [(= (list-ref (list-ref grid row) col)(list-ref (list-ref grid-new row) col)) (void)]
+					   [else (begin
+                                   (send dc set-brush (if (= 0 (list-ref (list-ref grid row) col)) live dead))
+                                   (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
+                (range (car grid-size))))
+         (range (cdr grid-size)))
+    (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-expand (rle->grid (car (dict-ref hangar "gosper glider gun"))) 64 64))
+(define grid (grid-expand (rle->grid (car (dict-ref hangar "gosper glider gun"))) (car grid-size) (cdr grid-size)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
 (define canvas
@@ -53,10 +122,13 @@
        [parent panel-left]
        [min-width 768]
        [min-height 768]
-       [paint-callback (lambda (canvas dc)
-                         (draw-canvas canvas dc #t)
-                         (set! timer
-                               (new timer%
-                                    [notify-callback (lambda () (draw-canvas canvas dc play-state))]
-                                    [interval 100]))
-                         )]))
+       [paint-callback ((lambda ()
+                          (define wow #f)
+                          (lambda (canvas dc)
+                            (if wow (begin
+                                      (canvas-draw dc)
+                                      (set! timer
+                                            (new timer%
+                                                 [notify-callback (lambda () (canvas-swap dc))]
+                                                 [interval 50]))
+                                      (send timer stop)) (set! wow #t)))))]))
