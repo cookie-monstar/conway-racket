@@ -45,8 +45,8 @@
    grid
    (get-neighbours grid)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cell-size 6)
-(define grid-size '(128 . 128))
+(define cell-size 4)
+(define grid-size '(192 . 192))
 (define frame
   (new frame%
        [label "Conway's game of life"]
@@ -92,43 +92,51 @@
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (canvas-draw dc)
-	(define grid-new (grid-next grid))
-    (map (lambda (row)
-           (map (lambda (col)
-                       (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
-                       (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))
-                (range (car grid-size))))
-         (range (cdr grid-size)))
-    (set! grid grid-new))
-(define (canvas-swap dc)
-	(define grid-new (grid-next grid))
-    (map (lambda (row)
-           (map (lambda (col)
-		          (cond
-				       [(= (list-ref (list-ref grid row) col)(list-ref (list-ref grid-new row) col)) (void)]
-					   [else (begin
-                                   (send dc set-brush (if (= 0 (list-ref (list-ref grid row) col)) live dead))
-                                   (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
-                (range (car grid-size))))
-         (range (cdr grid-size)))
-    (set! grid grid-new))
+(define (canvas-draw dc grid-new)
+  (set! grid grid-new)
+  (map (lambda (row)
+         (map (lambda (col)
+                (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
+                (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))
+              (range (car grid-size))))
+       (range (cdr grid-size))))
+(define (canvas-swap dc grid-new)
+  (map (lambda (row)
+         (map (lambda (col)
+                (cond
+                  [(= (list-ref (list-ref grid row) col)(list-ref (list-ref grid-new row) col)) (void)]
+                  [else (begin
+                          (send dc set-brush (if (= 1 (list-ref (list-ref grid-new row) col)) live dead))
+                          (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
+              (range (car grid-size))))
+       (range (cdr grid-size)))
+  (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-expand (rle->grid (car (dict-ref hangar "gosper glider gun"))) (car grid-size) (cdr grid-size)))
+(define grid (grid-move
+              (grid-expand (rle->grid (car (dict-ref hangar "knightship"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
 (define canvas
-  (new canvas%
-       [parent panel-left]
-       [min-width 768]
-       [min-height 768]
-       [paint-callback ((lambda ()
-                          (define wow #f)
-                          (lambda (canvas dc)
-                            (if wow (begin
-                                      (canvas-draw dc)
-                                      (set! timer
-                                            (new timer%
-                                                 [notify-callback (lambda () (canvas-swap dc))]
-                                                 [interval 50]))
-                                      (send timer stop)) (set! wow #t)))))]))
+  (new
+   (class canvas%
+     (define/override (on-event e)
+       (when (eq? (send e get-event-type) 'left-down)
+         (define x (quotient (send e get-x) cell-size))
+         (define y (quotient (send e get-y) cell-size))
+         (canvas-swap (send canvas get-dc)
+                      (list-set grid y
+                                (list-set (list-ref grid y) x
+                                          (- 1 (list-ref (list-ref grid y) x)))))))
+     (super-new))
+   [parent panel-left]
+   [min-width 768]
+   [min-height 768]
+   [paint-callback
+    (lambda (canvas dc)
+      (canvas-draw dc grid)
+      (set! timer
+            (new timer%
+                 [notify-callback (lambda ()
+                                    (if (send frame is-shown?) (canvas-swap dc (grid-next grid)) (send timer stop)))]
+                 [interval 50]))
+      (send timer stop))]))
