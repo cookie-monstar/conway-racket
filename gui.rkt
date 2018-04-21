@@ -266,6 +266,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
+(define kill (make-object brush% "GREEN" 'solid))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (canvas-draw dc grid-new)
   (set! grid grid-new)
@@ -279,15 +280,15 @@
   (map (lambda (row)
          (map (lambda (col)
                 (cond
-                  [(= (list-ref (list-ref grid row) col)(list-ref (list-ref grid-new row) col)) (void)]
+                  [(= (list-ref (list-ref grid row) col) (list-ref (list-ref grid-new row) col)) (void)]
                   [else (begin
-                          (send dc set-brush (if (= 1 (list-ref (list-ref grid-new row) col)) live dead))
+                          (send dc set-brush (if (= 1 (list-ref (list-ref grid-new row) col)) live kill))
                           (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
               (range (car grid-size))))
        (range (cdr grid-size)))
   (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-expand '(()) (car grid-size) (cdr grid-size)))
+(define grid (grid-expand '() (car grid-size) (cdr grid-size)))
 ;(define grid (grid-move
 ;              (grid-expand (rle->grid (car (dict-ref hangar "puffer train"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -309,9 +310,13 @@
    [min-height 768]
    [paint-callback
     (lambda (canvas dc)
+      (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
       (canvas-draw dc grid)
+      (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
       (set! timer
             (new timer%
                  [notify-callback (lambda ()
-                                    (if (send frame is-shown?) (canvas-swap dc (grid-next grid)) (send timer stop)))])))]))
+                                    (if (send frame is-shown?)
+                                        (canvas-swap dc (grid-next grid))
+                                        (send timer stop)))])))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
