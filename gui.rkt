@@ -1,6 +1,79 @@
 #lang racket
 (require racket/gui (prefix-in htdp: 2htdp/image) "parser.rkt" "hangar.rkt")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;code credited to GoZoner, https://stackoverflow.com/a/16493261/3086544
+(define-syntax try
+  (syntax-rules (catch)
+    ((_ body (catch catcher))
+     (call-with-current-continuation
+      (lambda (exit)
+        (with-exception-handler
+         (lambda (condition)
+           catcher
+           (exit condition))
+         (lambda () body)))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;parsing capabilities
+(define (rle->grid rle)
+  (define x 0)
+  (reverse (map reverse (foldl
+                         (lambda (c l)
+                           (cond
+                             [(= 98 c) (cons (if
+                                              (> x 0)
+                                              (append (make-list (begin0 x (set! x 0)) 0) (car l))
+                                              (cons 0 (car l))) (cdr l))]
+                             [(= 111 c) (cons (if
+                                               (> x 0)
+                                               (append (make-list (begin0 x (set! x 0)) 1) (car l))
+                                               (cons 1 (car l))) (cdr l))]
+                             [(= 36 c) (if (> x 0)
+                                           (append (make-list (begin0 x (set! x 0)) '()) l)
+                                           (cons '() l))]
+                             [(and (> c 47) (< c 58)) (begin (set! x (+ (- c 48) (* 10 x))) l)]
+                             [else l]))
+                         '(())
+                         (map char->integer (string->list rle))))))
+(define (get-rle path)
+  (define in (open-input-file (string-append "hangar/" path ".rle")))
+  (define grid "")
+  (define (reader)
+    (define line (read-line in))
+    (cond
+      [(eq? eof line) (rle->grid grid)]
+      [(eq? #\# (string-ref line 0)) (reader)]
+      [(eq? #\x (string-ref line 0)) (reader)]
+      [else (begin (set! grid (string-append grid line)) (reader))]))
+  (set! grid (reader))
+  (grid-expand grid (apply max (map length grid)) (length grid)))
+(define (list-expand bait n)
+  (lambda (lst) (append lst (make-list (- n (length lst)) bait))))
+(define (grid-expand grid m n)
+  (begin
+    (set! grid (map (list-expand 0 m) grid))
+    (set! grid ((list-expand (make-list m 0) n) grid))
+    grid))
+(define grid->rle ((lambda ()
+	(define (list->rle lst)
+		(define n 1)
+		(define l (car lst))
+		(foldl (lambda (str lit)
+			(if
+				(eq? l lit)
+				(begin
+					(set! n (+ n 1))
+					str)
+				(begin0
+					(string-append str (if (= 1 n) "" (number->string n)) (if (= 0 l) "b" "o"))
+					(set! n 1)
+					(set! l lit))
+				))
+			""
+			(cdr lst)))
+	(lambda (grid)
+	(foldr string-append "" (map list->rle grid) (make-list (- (length grid) 1) "$"))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;grid characteristics and algorithms
 (define (grid-god l c u)
   (lambda (g n)
     (cond [(> l n) 0]
@@ -44,6 +117,30 @@
    (lambda (g n) (map conway-god g n))
    grid
    (get-neighbours grid)))
+(define (grid-jump grid x)
+  (void (map (lambda (x) (set! grid (grid-next grid))) (range x))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;welcome frame
+(define welcome-frame
+  (new frame%
+       [label "Conway's game of life"]
+       [width 512]
+       [height 512]))
+(define welcome-panel
+  (new vertical-panel%
+       [parent welcome-frame]
+       [alignment '(center center)]))
+(define new-game
+  (new button%
+       [parent welcome-panel]
+       [label "New game"]))
+(define load-game
+  (new button%
+       [parent welcome-panel]
+       [label "Load game"]))
+(send welcome-frame show #t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cell-size 4)
 (define grid-size '(192 . 192))
@@ -52,7 +149,6 @@
        [label "Conway's game of life"]
        [width 1024]
        [height 768]))
-(send frame show #t)
 (define panels
   (new horizontal-panel%
        [parent frame]))
@@ -77,17 +173,43 @@
                    (send play-button set-label
                          (if play-state
                              (begin
-                               (send timer start 1)
+                               (send timer start speed-time)
                                "Playing")
                              (begin
                                (send timer stop)
                                "Paused"))))]))
-(define grid-button
+(define next-button
+  (new button%
+       [parent panel-right]
+       [label "Next"]
+       [callback (lambda (button event) (canvas-swap (send canvas get-dc) (grid-next grid)))]))
+(define jump-field
+  (new text-field%
+       [parent panel-right]
+       [label "Jump by: "]))
+(define jump-button
+  (new button%
+       [parent panel-right]
+       [label "Jump"]
+       [callback (lambda (button event)
+                   (define x (send jump-field get-value))
+                   (display x)
+                   )]))
+(define grid-choice
   (new choice%
        [parent panel-right]
        [label "Grid type: "]
        [choices (list "Closed" "Open")]
        [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
+(define speed-time 100)
+(define speed-choice
+  (new choice%
+       [parent panel-right]
+       [label "Speed: "]
+       [choices (list "Slow" "Normal" "Fast")]
+       [selection 1]
+       [callback (lambda (choice type) (set! speed-time (list-ref '(500 100 20) (send choice get-selection))) (when play-state (send timer stop) (send timer start speed-time)))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
@@ -112,8 +234,9 @@
        (range (cdr grid-size)))
   (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-move
-              (grid-expand (rle->grid (car (dict-ref hangar "knightship"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
+(define grid (grid-expand (get-rle "Guns/vacuum-cleaner") (car grid-size) (cdr grid-size)))
+;(define grid (grid-move
+;              (grid-expand (rle->grid (car (dict-ref hangar "puffer train"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
 (define canvas
@@ -137,6 +260,5 @@
       (set! timer
             (new timer%
                  [notify-callback (lambda ()
-                                    (if (send frame is-shown?) (canvas-swap dc (grid-next grid)) (send timer stop)))]
-                 [interval 50]))
-      (send timer stop))]))
+                                    (if (send frame is-shown?) (canvas-swap dc (grid-next grid)) (send timer stop)))])))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
