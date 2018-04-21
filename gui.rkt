@@ -1,5 +1,5 @@
 #lang racket
-(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6))
+(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6) "conway.rkt")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax try
   (syntax-rules (catch)
@@ -11,8 +11,7 @@
            catcher
            (exit condition))
          (lambda () body)))))))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;parsing capabilities
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (rle->grid rle)
   (define x 0)
   (reverse (map reverse (foldl
@@ -46,7 +45,7 @@
   (set! grid (reader))
   (grid-expand grid (apply max (map length grid)) (length grid)))
 (define (list-expand bait n)
-  (lambda (lst) (append lst (make-list (- n (length lst)) bait))))
+  (lambda (lst) (if (> n (length lst)) (append lst (make-list (- n (length lst)) bait)) (take lst n))))
 (define (grid-expand grid m n)
   (begin
     (set! grid (map (list-expand 0 m) grid))
@@ -108,7 +107,8 @@
 (define (get-neighbours grid)
   (cond
     [(eq? grid-type 0) (get-toroid-neighbours grid)]
-    [(eq? grid-type 1) (map cdr (cdr (get-toroid-neighbours (cons (make-list (+ 1 (length (car grid))) 0) (map (lambda (x) (cons 0 x)) grid)))))]))
+    [(eq? grid-type 1) (map cdr (cdr (get-toroid-neighbours (cons (make-list (+ 1 (length (car grid))) 0) (map (lambda (x) (cons 0 x)) grid)))))]
+    [(eq? grid-type 2) grid]))
 (define (grid-next grid)
   (map
    (lambda (g n) (map conway-god g n))
@@ -118,16 +118,23 @@
   (define grid-new grid)
   (void (map (lambda (x) (set! grid-new (grid-next grid-new))) (range x)))
   grid-new)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;welcome frame
 (define welcome-frame
   (new frame%
        [label "Conway's game of life"]
        [width 1024]
        [height 768]))
+(define welcome-wrap
+  (new panel%
+       [parent welcome-frame]
+       [alignment '(center center)]))
+(define welcome-background
+  (new message%
+       [parent welcome-wrap]
+       [label (make-object bitmap% "icons/wallpaper.jpeg")]))
 (define welcome-panel
   (new vertical-panel%
-       [parent welcome-frame]
+       [parent welcome-wrap]
        [alignment '(center center)]))
 (define welcome-heading
   (new message%
@@ -139,28 +146,25 @@
   (new button%
        [parent welcome-panel]
        [label "new  game"]
-       [callback (lambda (button event) (send frame show #t) (send welcome-frame show #f))]))
+       [callback (lambda (button event) (send welcome-wrap delete-child welcome-panel) (send welcome-wrap add-child panels))]))
 (define load-game
   (new button%
        [parent welcome-panel]
        [label "load game"]
        [callback (lambda (choice event)
-                   (define load-frame
-                     (new frame%
-                          [label "load game"]
-                          [width 256]
-                          [height 256]))
+                   (send welcome-wrap delete-child welcome-panel)
                    (define load-panel
                      (new vertical-panel%
-                          [parent load-frame]
+                          [parent welcome-wrap]
                           [alignment '(center center)]))
                    (define folders (map path->string (directory-list "hangar")))
-                   (define files (map path->string (directory-list (string-append "hangar/" (car folders)))))
+                   (define files (map path->string (directory-list (string-append "hangar/" (list-ref folders 9)))))
                    (define load-folder
                      (new choice%
                           [parent load-panel]
                           [label "Folder: "]
                           [choices folders]
+                          [selection 9]
                           [callback (lambda (choice event)
                                       (send load-panel delete-child load-file)
                                       (send load-panel delete-child load-button)
@@ -175,77 +179,117 @@
                      (new choice%
                           [parent load-panel]
                           [label "File: "]
-                          [choices files]))
+                          [choices files]
+                          [selection 10]))
                    (define load-button
                      (new button%
                           [parent load-panel]
                           [label "load game"]
                           [callback (lambda (button event)
-                                      (send load-frame show #f)
-                                      (send welcome-frame show #f)
-                                      (set! grid (grid-expand (get-rle (string-append
-                                                                        "hangar/"
-                                                                        (list-ref folders (send load-folder get-selection))
-                                                                        "/"
-                                                                        (list-ref files (send load-file get-selection))))
-                                                              (car grid-size) (cdr grid-size)))
-                                      (send frame show #t))]))
-                   (send load-frame show #t))]))
+                                      (send welcome-frame delete-child welcome-wrap)
+                                      (set! grid (get-rle (string-append
+                                                           "hangar/"
+                                                           (list-ref folders (send load-folder get-selection))
+                                                           "/"
+                                                           (list-ref files (send load-file get-selection)))))
+                                      (set! grid-size (cons (max (car grid-size) (length (car grid))) (max (cdr grid-size) (length grid))))
+                                      (set! grid
+                                            (grid-move
+                                             (grid-expand grid (car grid-size) (cdr grid-size))
+                                             (quotient (- (car grid-size) (length (car grid))) 2)
+                                             (quotient (- (cdr grid-size) (length grid)) 2)))
+                                      ;(send welcome-frame set-width (+ 256 (* cell-size (car grid-size))))
+                                      ;(send welcome-frame set-height (* cell-size (cdr grid-size)))
+                                      (send welcome-frame add-child panels))]))
+                   (void))]))
 (send welcome-frame show #t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cell-size 3)
 (define grid-size '(256 . 256))
-(define frame
-  (new frame%
-       [label "Conway's game of life"]
-       [width 1024]
-       [height 768]))
 (define panels
   (new horizontal-panel%
-       [parent frame]))
+       [parent welcome-frame]
+       [style '(deleted)]))
 (define panel-left
   (new panel%
        [parent panels]
-       [border 1]
-       [min-width 768]
-       [min-height 768]))
+       [border 1]))
 (define panel-right
   (new vertical-panel%
-       [parent panels]
-       [min-width 256]
-       [min-height 768]))
+       [parent panels]))
 (define play-state #f)
 (define patch-state #f)
+(define generation 0)
+(define population 0)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define pause-bmp (make-object bitmap% "icons/pause.png"))
+(define play-bmp (make-object bitmap% "icons/play.png"))
+(define next-bmp (make-object bitmap% "icons/next.png"))
+(define jump-bmp (make-object bitmap% "icons/jump.png"))
+(define fast-bmp (make-object bitmap% "icons/fast.png"))
+(define slow-bmp (make-object bitmap% "icons/slow.png"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define control-panel
+  (new horizontal-panel%
+       [parent panel-right]
+       [alignment '(center top)]))
+(define speed-slow
+  (new button%
+       [parent control-panel]
+       [label slow-bmp]
+       [callback (lambda (button choice)
+                   (set! speed-time
+                         (cond
+                           [(= speed-time 500) 500]
+                           [(= speed-time 100) 500]
+                           [(= speed-time 20) 100]))
+                   (when play-state (send timer stop) (send timer start speed-time)))]))
 (define play-button
   (new button%
-       [parent panel-right]
-       [label "Paused"]
+       [parent control-panel]
+       [label play-bmp]
        [callback (lambda (button event) (set! play-state (not play-state))
                    (send play-button set-label
                          (if play-state
                              (begin
                                (send timer start speed-time)
-                               "Playing")
+                               pause-bmp)
                              (begin
                                (send timer stop)
-                               "Paused"))))]))
+                               play-bmp))))]))
 (define next-button
   (new button%
-       [parent panel-right]
-       [label "Next"]
+       [parent control-panel]
+       [label next-bmp]
        [callback (lambda (button event) (canvas-swap (send canvas get-dc) (grid-next grid)))]))
+(define jump-button
+  (new button%
+       [parent control-panel]
+       [label jump-bmp]
+       [callback (lambda (button event)
+                   (try (begin
+                          (canvas-swap (send canvas get-dc) (grid-jump grid (string->number (send jump-field get-value))))
+                          (set! generation (+ generation (string->number (send jump-field get-value))))
+                          (send generation-gauge set-label (string-append "Generation: " (number->string generation)))
+                          (send population-gauge set-label (string-append "Population: " (number->string population))))
+                        (catch (void)))
+                   )]))
+(define speed-fast
+  (new button%
+       [parent control-panel]
+       [label fast-bmp]
+       [callback (lambda (button choice)
+                   (set! speed-time
+                         (cond
+                           [(= speed-time 500) 100]
+                           [(= speed-time 100) 20]
+                           [(= speed-time 20) 20]))
+                   (when play-state (send timer stop) (send timer start speed-time)))]))
 (define jump-field
   (new text-field%
        [parent panel-right]
-       [label "Jump by: "]))
-(define jump-button
-  (new button%
-       [parent panel-right]
-       [label "Jump"]
-       [callback (lambda (button event)
-                   (try (canvas-swap (send canvas get-dc) (grid-jump grid (string->number (send jump-field get-value))))
-                        (catch (void)))
-                   )]))
+       [label "Jump by: "]
+       [init-value "25"]))
 (define grid-choice
   (new choice%
        [parent panel-right]
@@ -253,15 +297,22 @@
        [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
        [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
 (define speed-time 100)
-(define speed-choice
-  (new choice%
+;  (new choice%
+;       [parent panel-right]
+;       [label "Speed: "]
+;       [choices (list "Slow" "Normal" "Fast")]
+;       [selection 1]
+;       [callback (lambda (choice type)
+;                   (set! speed-time (list-ref '(500 100 20) (send choice get-selection)))
+;                   (when play-state (send timer stop) (send timer start speed-time)))]))
+(define generation-gauge
+  (new message%
        [parent panel-right]
-       [label "Speed: "]
-       [choices (list "Slow" "Normal" "Fast")]
-       [selection 1]
-       [callback (lambda (choice type)
-                   (set! speed-time (list-ref '(500 100 20) (send choice get-selection)))
-                   (when play-state (send timer stop) (send timer start speed-time)))]))
+       [label "Generation: 0"]))
+(define population-gauge
+  (new message%
+       [parent panel-right]
+       [label "Population: 0"]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
@@ -270,6 +321,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (canvas-draw dc grid-new)
   (set! grid grid-new)
+  (set! population (apply + (map (lambda (row) (apply + row)) grid)))
   (map (lambda (row)
          (map (lambda (col)
                 (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
@@ -282,7 +334,10 @@
                 (cond
                   [(= (list-ref (list-ref grid row) col) (list-ref (list-ref grid-new row) col)) (void)]
                   [else (begin
-                          (send dc set-brush (if (= 1 (list-ref (list-ref grid-new row) col)) live kill))
+                          (send dc set-brush
+                                (if (= 1 (list-ref (list-ref grid-new row) col))
+                                    (begin (set! population (+ population 1)) live)
+                                    (begin (set! population (- population 1)) kill)))
                           (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
               (range (car grid-size))))
        (range (cdr grid-size)))
@@ -297,13 +352,15 @@
   (new
    (class canvas%
      (define/override (on-event e)
-       (when (eq? (send e get-event-type) 'left-down)
-         (define x (quotient (send e get-x) cell-size))
-         (define y (quotient (send e get-y) cell-size))
-         (canvas-swap (send canvas get-dc)
-                      (list-set grid y
-                                (list-set (list-ref grid y) x
-                                          (- 1 (list-ref (list-ref grid y) x)))))))
+       (define type (send e get-event-type))
+       (cond [(eq? type 'left-down)
+           (let* ([x (quotient (send e get-x) cell-size)]
+                  [y (quotient (send e get-y) cell-size)])
+             (canvas-swap (send canvas get-dc)
+                          (list-set grid y
+                                    (list-set (list-ref grid y) x
+                                              (- 1 (list-ref (list-ref grid y) x))))))]
+           [(not (member type '(left-up right-up right-down motion enter leave))) (displayln type)]))
      (super-new))
    [parent panel-left]
    [min-width 768]
@@ -313,10 +370,14 @@
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
       (canvas-draw dc grid)
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
+      (send population-gauge set-label (string-append "Population: " (number->string population)))
       (set! timer
             (new timer%
                  [notify-callback (lambda ()
-                                    (if (send frame is-shown?)
-                                        (canvas-swap dc (grid-next grid))
+                                    (if (send welcome-frame is-shown?)
+                                        (begin
+                                          (canvas-swap dc (grid-next grid))
+                                          (set! generation (+ generation 1))
+                                          (send generation-gauge set-label (string-append "Generation: " (number->string generation)))
+                                          (send population-gauge set-label (string-append "Population: " (number->string population))))
                                         (send timer stop)))])))]))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
