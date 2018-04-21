@@ -1,13 +1,12 @@
 #lang racket
-(require racket/gui (prefix-in htdp: 2htdp/image) "parser.rkt" "hangar.rkt")
+(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;code credited to GoZoner, https://stackoverflow.com/a/16493261/3086544
 (define-syntax try
   (syntax-rules (catch)
     ((_ body (catch catcher))
      (call-with-current-continuation
       (lambda (exit)
-        (with-exception-handler
+        (rnrs:with-exception-handler
          (lambda (condition)
            catcher
            (exit condition))
@@ -35,7 +34,7 @@
                          '(())
                          (map char->integer (string->list rle))))))
 (define (get-rle path)
-  (define in (open-input-file (string-append "hangar/" path ".rle")))
+  (define in (open-input-file path))
   (define grid "")
   (define (reader)
     (define line (read-line in))
@@ -54,24 +53,24 @@
     (set! grid ((list-expand (make-list m 0) n) grid))
     grid))
 (define grid->rle ((lambda ()
-	(define (list->rle lst)
-		(define n 1)
-		(define l (car lst))
-		(foldl (lambda (str lit)
-			(if
-				(eq? l lit)
-				(begin
-					(set! n (+ n 1))
-					str)
-				(begin0
-					(string-append str (if (= 1 n) "" (number->string n)) (if (= 0 l) "b" "o"))
-					(set! n 1)
-					(set! l lit))
-				))
-			""
-			(cdr lst)))
-	(lambda (grid)
-	(foldr string-append "" (map list->rle grid) (make-list (- (length grid) 1) "$"))))))
+                     (define (list->rle lst)
+                       (define n 1)
+                       (define l (car lst))
+                       (foldl (lambda (str lit)
+                                (if
+                                 (eq? l lit)
+                                 (begin
+                                   (set! n (+ n 1))
+                                   str)
+                                 (begin0
+                                   (string-append str (if (= 1 n) "" (number->string n)) (if (= 0 l) "b" "o"))
+                                   (set! n 1)
+                                   (set! l lit))
+                                 ))
+                              ""
+                              (cdr lst)))
+                     (lambda (grid)
+                       (foldr string-append "" (map list->rle grid) (make-list (- (length grid) 1) "$"))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;grid characteristics and algorithms
 (define (grid-god l c u)
@@ -101,49 +100,101 @@
   (map (lambda (row) (append (drop row (- (length row) x)) (take row (- (length row) x)))) grid))
 (define grid-type 0)
 (define (get-toroid-neighbours grid)
-  (define lst (list grid))
+  (define g grid)
   (begin
-    (set! lst (append* (map (lambda (g) (list g (grid-w g) (grid-e g))) lst)))
-    (set! lst (append* (map (lambda (g) (list g (grid-n g) (grid-s g))) lst)))
-    (foldr grid-add (cadr lst) (cddr lst))))
-
+    (set! g (foldr grid-add g (list (grid-w g) (grid-e g))))
+    (set! g (foldr grid-add g (list (grid-n g) (grid-s g))))
+    (grid-add g (map (lambda (row) (map - row)) grid))))
 (define (get-neighbours grid)
   (cond
     [(eq? grid-type 0) (get-toroid-neighbours grid)]
     [(eq? grid-type 1) (map cdr (cdr (get-toroid-neighbours (cons (make-list (+ 1 (length (car grid))) 0) (map (lambda (x) (cons 0 x)) grid)))))]))
-
 (define (grid-next grid)
   (map
    (lambda (g n) (map conway-god g n))
    grid
    (get-neighbours grid)))
 (define (grid-jump grid x)
-  (void (map (lambda (x) (set! grid (grid-next grid))) (range x))))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+  (define grid-new grid)
+  (void (map (lambda (x) (set! grid-new (grid-next grid-new))) (range x)))
+  grid-new)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;welcome frame
 (define welcome-frame
   (new frame%
        [label "Conway's game of life"]
-       [width 512]
-       [height 512]))
+       [width 1024]
+       [height 768]))
 (define welcome-panel
   (new vertical-panel%
        [parent welcome-frame]
        [alignment '(center center)]))
+(define welcome-heading
+  (new message%
+       [parent welcome-panel]
+       [label "Conway's Game of Life: Simulator"]
+       [font
+        (make-object font% 40 'swiss 'slant 'light)]))
 (define new-game
   (new button%
        [parent welcome-panel]
-       [label "New game"]))
+       [label "new  game"]
+       [callback (lambda (button event) (send frame show #t) (send welcome-frame show #f))]))
 (define load-game
   (new button%
        [parent welcome-panel]
-       [label "Load game"]))
+       [label "load game"]
+       [callback (lambda (choice event)
+                   (define load-frame
+                     (new frame%
+                          [label "load game"]
+                          [width 256]
+                          [height 256]))
+                   (define load-panel
+                     (new vertical-panel%
+                          [parent load-frame]
+                          [alignment '(center center)]))
+                   (define folders (map path->string (directory-list "hangar")))
+                   (define files (map path->string (directory-list (string-append "hangar/" (car folders)))))
+                   (define load-folder
+                     (new choice%
+                          [parent load-panel]
+                          [label "Folder: "]
+                          [choices folders]
+                          [callback (lambda (choice event)
+                                      (send load-panel delete-child load-file)
+                                      (send load-panel delete-child load-button)
+                                      (set! files (map path->string (directory-list (string-append "hangar/" (list-ref folders (send load-folder get-selection))))))
+                                      (set! load-file
+                                            (new choice%
+                                                 [parent load-panel]
+                                                 [label "File: "]
+                                                 [choices files]))
+                                      (send load-panel add-child load-button))]))
+                   (define load-file
+                     (new choice%
+                          [parent load-panel]
+                          [label "File: "]
+                          [choices files]))
+                   (define load-button
+                     (new button%
+                          [parent load-panel]
+                          [label "load game"]
+                          [callback (lambda (button event)
+                                      (send load-frame show #f)
+                                      (send welcome-frame show #f)
+                                      (set! grid (grid-expand (get-rle (string-append
+                                                                        "hangar/"
+                                                                        (list-ref folders (send load-folder get-selection))
+                                                                        "/"
+                                                                        (list-ref files (send load-file get-selection))))
+                                                              (car grid-size) (cdr grid-size)))
+                                      (send frame show #t))]))
+                   (send load-frame show #t))]))
 (send welcome-frame show #t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cell-size 4)
-(define grid-size '(192 . 192))
+(define cell-size 3)
+(define grid-size '(256 . 256))
 (define frame
   (new frame%
        [label "Conway's game of life"]
@@ -192,14 +243,14 @@
        [parent panel-right]
        [label "Jump"]
        [callback (lambda (button event)
-                   (define x (send jump-field get-value))
-                   (display x)
+                   (try (canvas-swap (send canvas get-dc) (grid-jump grid (string->number (send jump-field get-value))))
+                        (catch (void)))
                    )]))
 (define grid-choice
   (new choice%
        [parent panel-right]
        [label "Grid type: "]
-       [choices (list "Closed" "Open")]
+       [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
        [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
 (define speed-time 100)
 (define speed-choice
@@ -208,7 +259,9 @@
        [label "Speed: "]
        [choices (list "Slow" "Normal" "Fast")]
        [selection 1]
-       [callback (lambda (choice type) (set! speed-time (list-ref '(500 100 20) (send choice get-selection))) (when play-state (send timer stop) (send timer start speed-time)))]))
+       [callback (lambda (choice type)
+                   (set! speed-time (list-ref '(500 100 20) (send choice get-selection)))
+                   (when play-state (send timer stop) (send timer start speed-time)))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
@@ -234,7 +287,7 @@
        (range (cdr grid-size)))
   (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-expand (get-rle "Guns/vacuum-cleaner") (car grid-size) (cdr grid-size)))
+(define grid (grid-expand '(()) (car grid-size) (cdr grid-size)))
 ;(define grid (grid-move
 ;              (grid-expand (rle->grid (car (dict-ref hangar "puffer train"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

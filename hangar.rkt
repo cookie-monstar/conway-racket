@@ -37,4 +37,6 @@ o$10bobo2b2o$10bo2bobobo$10b3o6bo$11bobobo3bo$14b2obobo$11bo6b3o2$11bo
 o$22b2o3bo$21bo$21b2obo$20bo$19b5o$19bo4bo$18b3ob3o$18bob5o$18bo$20bo$
 16bo4b4o$20b4ob2o$17b3o4bo$24bobo$28bo$24bo2b2o$25b3o$22b2o$21b3o5bo$
 24b2o2bobo$21bo2b3obobo$22b2obo2bo$24bobo2b2o$26b2o$22b3o4bo$22b3o4bo$
-23b2o3b3o$24b2ob2o$25b2o$25bo2$24b2o$26bo" 31 79)))
+23b2o3b3o$24b2ob2o$25b2o$25bo2$24b2o$26bo" 31 79)
+        (list "puffer train"
+              "3bo$4bo$o3bo$b4o4$o$boo$bbo$bbo$bo3$3bo$4bo$o3bo$b4o" 5 18)))
