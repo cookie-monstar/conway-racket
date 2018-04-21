@@ -7,6 +7,18 @@
 (define nikhil (grid-expand (rle->grid
                              "2o4bob3obo2bobobob3obo$obo3bo2bo2bobo2bobo2bo2bo$o2bo2bo2bo2b2o3b3o2bo2bo$o3bobo2bo2bobo2bobo2bo2bo$o4b2ob3obo2bobobob3ob4o$") 32 8))
 (define poorvi (grid-expand (rle->grid "3o3b2o3b2o2b3o2bo5bob3o$o2bobo2bobo2bobo2bobo5bo2bo$3o2bo2bobo2bob3o3bo3bo3bo$o4bo2bobo2bobobo4bobo4bo$o5b2o3b2o2bo2bo4bo4b3o$") 32 8))
+(define thanku (grid-expand (rle->grid "$$$$$$$$$$$b5obo3bo2b2o2b2o4bobo2bo$
+3bo3bo3bobo2bobobo3bobobo$
+3bo3b5ob4obo2bo2bob2o$
+3bo3bo3bobo2bobo3bobobobo$
+3bo3bo3bobo2bobo4b2obo2bo$
+$
+$
+10bo3bo2b2o2bo3bo$
+11bobo2bo2bobo3bo$
+12bo3bo2bobo3bo$
+12bo3bo2bobo3bo$
+12bo4b2o3b3o$") 32 32))
 (define grid (append (lc (make-list 32 0) : x <- (range 10)) nikhil poorvi (lc (make-list 32 0) : x <- (range 100))))
 
 (define (tick-expr world)
