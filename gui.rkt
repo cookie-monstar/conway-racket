@@ -1,6 +1,7 @@
 #lang racket
-(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6))
+(require racket/gui (prefix-in rnrs: rnrs/exceptions-6))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;try-catch syntax definition
 (define-syntax try
   (syntax-rules (catch)
     ((_ body (catch catcher))
@@ -12,6 +13,7 @@
            (exit condition))
          (lambda () body)))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;parsing, importing, deparsing and exporting tools
 (define (rle->grid rle)
   (define x 0)
   (reverse
@@ -121,12 +123,13 @@
   (define grid-new grid)
   (void (map (lambda (x) (set! grid-new (grid-next grid-new))) (range x)))
   grid-new)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;welcome frame
 (define welcome-frame
   (new frame%
-       [label "Conway's game of life"]
-       ;[width 1024]
-       ;[height 768]
+       [label "Conway's Game of Life: Simulator"]
+       [width 1024]
+       [height 768]
        ))
 (define welcome-wrap
   (new panel%
@@ -150,7 +153,11 @@
   (new button%
        [parent welcome-panel]
        [label "new  game"]
-       [callback (lambda (button event) (send welcome-wrap delete-child welcome-panel) (send welcome-wrap add-child panels))]))
+       [callback (lambda (button event)
+	                     (send welcome-frame delete-child welcome-wrap)
+						 (send welcome-frame add-child panels))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;loading frame
 (define load-panel
   (new vertical-panel%
        [parent welcome-wrap]
@@ -208,6 +215,7 @@
                    (void))]))
 (send welcome-frame show #t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;the simulator part
 (define cell-size 3)
 (define grid-size '(256 . 256))
 (define panels
@@ -236,7 +244,7 @@
 (define control-panel
   (new horizontal-panel%
        [parent panel-right]
-       [alignment '(center top)]))
+       [alignment '(center bottom)]))
 (define speed-slow
   (new button%
        [parent control-panel]
@@ -293,9 +301,33 @@
                            [(= speed-time 100) 20]
                            [(= speed-time 20) 20]))
                    (when play-state (send timer stop) (send timer start speed-time)))]))
+(define settings-panel
+  (new vertical-panel%
+       [parent panel-right]
+       [alignment '(center top)]))
+(define jump-field
+  (new text-field%
+       [parent settings-panel]
+       [label "Jump by: "]
+       [init-value "25"]))
+(define grid-choice
+  (new choice%
+       [parent settings-panel]
+       [label "Grid type: "]
+       [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
+       [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
+(define speed-time 100)
+(define generation-gauge
+  (new message%
+       [parent settings-panel]
+       [label "Generation: 0"]))
+(define population-gauge
+  (new message%
+       [parent settings-panel]
+       [label "Population: 0"]))
 (define load-game-again
   (new button%
-       [parent panel-right]
+       [parent settings-panel]
        [label "load game"]
        [callback (lambda (choice event)
                    (send timer stop)
@@ -305,7 +337,10 @@
                    (set! grid-size '(256 . 256))
                    (send welcome-frame delete-child panels)
                    (send welcome-frame add-child welcome-wrap)
-                   (void))]))
+				   (try (begin
+				      (send welcome-wrap delete-child welcome-panel)
+				      (send welcome-wrap add-child load-panel))
+					  (catch (void))))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define thanku (grid-expand (rle->grid "11$b5obo3bo2b2o2b2o4bobo2bo$
@@ -344,47 +379,32 @@ $
         (canvas-draw dc grid)
         (set! timer
               (new timer%
-                   [interval 400]
+                   [interval 200]
                    [notify-callback (lambda ()
                                       (set! count (+ count 1))
                                       (canvas-swap dc
                                                    (cond
-                                                     ((< count 32)
+                                                     [(< count 32)
                                                       (append (cdr (grid-next (cons (make-list 32 0) (take grid count))))
-                                                              (drop grid count)))
-                                                     ((< count 40) (grid-next grid))
-                                                     ((< count 45) thanku)
-                                                     ((< count 60) (grid-next grid))
-                                                     (else (begin0 grid (send timer stop) (send welcome-frame show #f))))))])))]))
+                                                              (drop grid count))]
+                                                     [(< count 40) (grid-next grid)]
+                                                     [(< count 45) thanku]
+                                                     [(< count 60) (append (cdr (grid-next (cons (make-list 32 0) (take grid (- count 40)))))
+													          (drop grid (- count 40)))]
+                                                     [else
+													 	(begin0
+														grid
+														(send timer stop)
+														(send credits-frame show #f))])))])))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define end-game
   (new button%
-       [parent panel-right]
+       [parent settings-panel]
        [label "end game"]
        [callback (lambda (button event)
                    (send timer stop)
                    (send welcome-frame show #f)
                    (send credits-frame show #t))]))
-(define jump-field
-  (new text-field%
-       [parent panel-right]
-       [label "Jump by: "]
-       [init-value "25"]))
-(define grid-choice
-  (new choice%
-       [parent panel-right]
-       [label "Grid type: "]
-       [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
-       [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
-(define speed-time 100)
-(define generation-gauge
-  (new message%
-       [parent panel-right]
-       [label "Generation: 0"]))
-(define population-gauge
-  (new message%
-       [parent panel-right]
-       [label "Population: 0"]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
