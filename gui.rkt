@@ -198,8 +198,6 @@
                                              (grid-expand grid (car grid-size) (cdr grid-size))
                                              (quotient (- (car grid-size) (length (car grid))) 2)
                                              (quotient (- (cdr grid-size) (length grid)) 2)))
-                                      ;(send welcome-frame set-width (+ 256 (* cell-size (car grid-size))))
-                                      ;(send welcome-frame set-height (* cell-size (cdr grid-size)))
                                       (send welcome-frame add-child panels))]))
                    (void))]))
 (send welcome-frame show #t)
@@ -216,7 +214,8 @@
        [border 1]))
 (define panel-right
   (new vertical-panel%
-       [parent panels]))
+       [parent panels]
+       [min-width 256]))
 (define play-state #f)
 (define patch-state #f)
 (define generation 0)
@@ -297,14 +296,6 @@
        [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
        [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
 (define speed-time 100)
-;  (new choice%
-;       [parent panel-right]
-;       [label "Speed: "]
-;       [choices (list "Slow" "Normal" "Fast")]
-;       [selection 1]
-;       [callback (lambda (choice type)
-;                   (set! speed-time (list-ref '(500 100 20) (send choice get-selection)))
-;                   (when play-state (send timer stop) (send timer start speed-time)))]))
 (define generation-gauge
   (new message%
        [parent panel-right]
@@ -354,19 +345,21 @@
      (define/override (on-event e)
        (define type (send e get-event-type))
        (cond [(eq? type 'left-down)
-           (let* ([x (quotient (send e get-x) cell-size)]
-                  [y (quotient (send e get-y) cell-size)])
-             (canvas-swap (send canvas get-dc)
-                          (list-set grid y
-                                    (list-set (list-ref grid y) x
-                                              (- 1 (list-ref (list-ref grid y) x))))))]
-           [(not (member type '(left-up right-up right-down motion enter leave))) (displayln type)]))
+              (let* ([x (quotient (send e get-x) cell-size)]
+                     [y (quotient (send e get-y) cell-size)])
+                (canvas-swap (send canvas get-dc)
+                             (list-set grid y
+                                       (list-set (list-ref grid y) x
+                                                 (- 1 (list-ref (list-ref grid y) x))))))]
+             [(not (member type '(left-up right-up right-down motion enter leave))) (displayln type)]))
      (super-new))
    [parent panel-left]
    [min-width 768]
    [min-height 768]
+   ;[style '(hscroll vscroll)]
    [paint-callback
     (lambda (canvas dc)
+      ;(send canvas init-auto-scrollbars (/ (car grid-size) 256) (/ (cdr grid-size) 256) 0 0)
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
       (canvas-draw dc grid)
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
