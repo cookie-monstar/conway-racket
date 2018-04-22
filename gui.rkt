@@ -14,24 +14,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (rle->grid rle)
   (define x 0)
-  (reverse (map reverse (foldl
-                         (lambda (c l)
-                           (cond
-                             [(= 98 c) (cons (if
-                                              (> x 0)
-                                              (append (make-list (begin0 x (set! x 0)) 0) (car l))
-                                              (cons 0 (car l))) (cdr l))]
-                             [(= 111 c) (cons (if
-                                               (> x 0)
-                                               (append (make-list (begin0 x (set! x 0)) 1) (car l))
-                                               (cons 1 (car l))) (cdr l))]
-                             [(= 36 c) (if (> x 0)
-                                           (append (make-list (begin0 x (set! x 0)) '()) l)
-                                           (cons '() l))]
-                             [(and (> c 47) (< c 58)) (begin (set! x (+ (- c 48) (* 10 x))) l)]
-                             [else l]))
-                         '(())
-                         (map char->integer (string->list rle))))))
+  (reverse
+   (map reverse
+        (foldl
+         (lambda (c l)
+           (cond
+             [(= 98 c) (cons (if
+                              (> x 0)
+                              (append (make-list (begin0 x (set! x 0)) 0) (car l))
+                              (cons 0 (car l))) (cdr l))]
+             [(= 111 c) (cons (if
+                               (> x 0)
+                               (append (make-list (begin0 x (set! x 0)) 1) (car l))
+                               (cons 1 (car l))) (cdr l))]
+             [(= 36 c) (if (> x 0)
+                           (append (make-list (begin0 x (set! x 0)) '()) l)
+                           (cons '() l))]
+             [(and (> c 47) (< c 58)) (begin (set! x (+ (- c 48) (* 10 x))) l)]
+             [else l]))
+         '(())
+         (map char->integer (string->list rle))))))
 (define (get-rle path)
   (define in (open-input-file path))
   (define grid "")
@@ -104,6 +106,7 @@
     (set! g (foldr grid-add g (list (grid-w g) (grid-e g))))
     (set! g (foldr grid-add g (list (grid-n g) (grid-s g))))
     (grid-add g (map (lambda (row) (map - row)) grid))))
+
 (define (get-neighbours grid)
   (cond
     [(eq? grid-type 0) (get-toroid-neighbours grid)]
@@ -122,8 +125,9 @@
 (define welcome-frame
   (new frame%
        [label "Conway's game of life"]
-       [width 1024]
-       [height 768]))
+       ;[width 1024]
+       ;[height 768]
+       ))
 (define welcome-wrap
   (new panel%
        [parent welcome-frame]
@@ -147,58 +151,60 @@
        [parent welcome-panel]
        [label "new  game"]
        [callback (lambda (button event) (send welcome-wrap delete-child welcome-panel) (send welcome-wrap add-child panels))]))
+(define load-panel
+  (new vertical-panel%
+       [parent welcome-wrap]
+       [style '(deleted)]
+       [alignment '(center center)]))
+(define folders (map path->string (directory-list "hangar")))
+(define files (map path->string (directory-list (string-append "hangar/" (list-ref folders 9)))))
+(define load-folder
+  (new choice%
+       [parent load-panel]
+       [label "Folder: "]
+       [choices folders]
+       [selection 9]
+       [callback (lambda (choice event)
+                   (send load-panel delete-child load-file)
+                   (send load-panel delete-child load-button)
+                   (set! files (map path->string (directory-list (string-append "hangar/" (list-ref folders (send load-folder get-selection))))))
+                   (set! load-file
+                         (new choice%
+                              [parent load-panel]
+                              [label "File: "]
+                              [choices files]))
+                   (send load-panel add-child load-button))]))
+(define load-file
+  (new choice%
+       [parent load-panel]
+       [label "File: "]
+       [choices files]
+       [selection 10]))
+(define load-button
+  (new button%
+       [parent load-panel]
+       [label "load game"]
+       [callback (lambda (button event)
+                   (send welcome-frame delete-child welcome-wrap)
+                   (set! grid (get-rle (string-append
+                                        "hangar/"
+                                        (list-ref folders (send load-folder get-selection))
+                                        "/"
+                                        (list-ref files (send load-file get-selection)))))
+                   (set! grid-size (cons (max (car grid-size) (length (car grid))) (max (cdr grid-size) (length grid))))
+                   (set! grid
+                         (grid-move
+                          (grid-expand grid (car grid-size) (cdr grid-size))
+                          (quotient (- (car grid-size) (length (car grid))) 2)
+                          (quotient (- (cdr grid-size) (length grid)) 2)))
+                   (send welcome-frame add-child panels))]))
 (define load-game
   (new button%
        [parent welcome-panel]
        [label "load game"]
        [callback (lambda (choice event)
                    (send welcome-wrap delete-child welcome-panel)
-                   (define load-panel
-                     (new vertical-panel%
-                          [parent welcome-wrap]
-                          [alignment '(center center)]))
-                   (define folders (map path->string (directory-list "hangar")))
-                   (define files (map path->string (directory-list (string-append "hangar/" (list-ref folders 9)))))
-                   (define load-folder
-                     (new choice%
-                          [parent load-panel]
-                          [label "Folder: "]
-                          [choices folders]
-                          [selection 9]
-                          [callback (lambda (choice event)
-                                      (send load-panel delete-child load-file)
-                                      (send load-panel delete-child load-button)
-                                      (set! files (map path->string (directory-list (string-append "hangar/" (list-ref folders (send load-folder get-selection))))))
-                                      (set! load-file
-                                            (new choice%
-                                                 [parent load-panel]
-                                                 [label "File: "]
-                                                 [choices files]))
-                                      (send load-panel add-child load-button))]))
-                   (define load-file
-                     (new choice%
-                          [parent load-panel]
-                          [label "File: "]
-                          [choices files]
-                          [selection 10]))
-                   (define load-button
-                     (new button%
-                          [parent load-panel]
-                          [label "load game"]
-                          [callback (lambda (button event)
-                                      (send welcome-frame delete-child welcome-wrap)
-                                      (set! grid (get-rle (string-append
-                                                           "hangar/"
-                                                           (list-ref folders (send load-folder get-selection))
-                                                           "/"
-                                                           (list-ref files (send load-file get-selection)))))
-                                      (set! grid-size (cons (max (car grid-size) (length (car grid))) (max (cdr grid-size) (length grid))))
-                                      (set! grid
-                                            (grid-move
-                                             (grid-expand grid (car grid-size) (cdr grid-size))
-                                             (quotient (- (car grid-size) (length (car grid))) 2)
-                                             (quotient (- (cdr grid-size) (length grid)) 2)))
-                                      (send welcome-frame add-child panels))]))
+                   (send welcome-wrap add-child load-panel)
                    (void))]))
 (send welcome-frame show #t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,8 +216,7 @@
        [style '(deleted)]))
 (define panel-left
   (new panel%
-       [parent panels]
-       [border 1]))
+       [parent panels]))
 (define panel-right
   (new vertical-panel%
        [parent panels]
@@ -260,7 +265,11 @@
   (new button%
        [parent control-panel]
        [label next-bmp]
-       [callback (lambda (button event) (canvas-swap (send canvas get-dc) (grid-next grid)))]))
+       [callback (lambda (button event)
+                   (set! generation (+ generation 1))
+                   (canvas-swap (send canvas get-dc) (grid-next grid))
+                   (send generation-gauge set-label (string-append "Generation: " (number->string generation)))
+                   (send population-gauge set-label (string-append "Population: " (number->string population))))]))
 (define jump-button
   (new button%
        [parent control-panel]
@@ -284,6 +293,78 @@
                            [(= speed-time 100) 20]
                            [(= speed-time 20) 20]))
                    (when play-state (send timer stop) (send timer start speed-time)))]))
+(define load-game-again
+  (new button%
+       [parent panel-right]
+       [label "load game"]
+       [callback (lambda (choice event)
+                   (send timer stop)
+                   (send play-button set-label play-bmp)
+                   (set! play-state #f)
+                   (set! speed-time 100)
+                   (set! grid-size '(256 . 256))
+                   (send welcome-frame delete-child panels)
+                   (send welcome-frame add-child welcome-wrap)
+                   (void))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define thanku (grid-expand (rle->grid "11$b5obo3bo2b2o2b2o4bobo2bo$
+3bo3bo3bobo2bobobo3bobobo$
+3bo3b5ob4obo2bo2bob2o$
+3bo3bo3bobo2bobo3bobobobo$
+3bo3bo3bobo2bobo4b2obo2bo$
+$
+$
+10bo3bo2b2o2bo3bo$
+11bobo2bo2bobo3bo$
+12bo3bo2bobo3bo$
+12bo3bo2bobo3bo$
+12bo4b2o3b3o$") 32 32))
+(define nikhil-poorvi
+  (grid-expand
+   (rle->grid
+    "10$2o4bob3obo2bobobob3obo$obo3bo2bo2bobo2bobo2bo2bo$o2bo2bo2bo2b2o3b3o2bo2bo$o3bobo2bo2bobo2bobo2bo2bo$o4b2ob3obo2bobobob3ob4o3$
+3o3b2o3b2o2b3o2bo5bob3o$o2bobo2bobo2bobo2bobo5bo2bo$3o2bo2bobo2bob3o3bo3bo3bo$o4bo2bobo2bobobo4bobo4bo$o5b2o3b2o2bo2bo4bo4b3o$") 32 32))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define count 0)
+(define credits-frame
+  (new frame%
+       [label "Thank you! Run me again!"]
+       [width 256]
+       [height 256]))
+(define credits-canvas
+  (new canvas%
+     [parent credits-frame]
+     [paint-callback
+      (lambda (canvas dc)
+        (set! cell-size 8)
+        (set! grid-size '(32 . 32))
+        (set! grid-type 0)
+        (set! grid nikhil-poorvi)
+        (canvas-draw dc grid)
+        (set! timer
+              (new timer%
+                   [interval 400]
+                   [notify-callback (lambda ()
+                                      (set! count (+ count 1))
+                                      (canvas-swap dc
+                                                   (cond
+                                                     ((< count 32)
+                                                      (append (cdr (grid-next (cons (make-list 32 0) (take grid count))))
+                                                              (drop grid count)))
+                                                     ((< count 40) (grid-next grid))
+                                                     ((< count 45) thanku)
+                                                     ((< count 60) (grid-next grid))
+                                                     (else (begin0 grid (send timer stop) (send welcome-frame show #f))))))])))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define end-game
+  (new button%
+       [parent panel-right]
+       [label "end game"]
+       [callback (lambda (button event)
+                   (send timer stop)
+                   (send welcome-frame show #f)
+                   (send credits-frame show #t))]))
 (define jump-field
   (new text-field%
        [parent panel-right]
@@ -304,7 +385,6 @@
   (new message%
        [parent panel-right]
        [label "Population: 0"]))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define live (make-object brush% "BLACK" 'solid))
 (define dead (make-object brush% "WHITE" 'solid))
@@ -335,8 +415,6 @@
   (set! grid grid-new))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define grid (grid-expand '() (car grid-size) (cdr grid-size)))
-;(define grid (grid-move
-;              (grid-expand (rle->grid (car (dict-ref hangar "puffer train"))) (car grid-size) (cdr grid-size)) (/ (car grid-size) 2) (/ (cdr grid-size) 2)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
 (define canvas
@@ -356,11 +434,10 @@
    [parent panel-left]
    [min-width 768]
    [min-height 768]
-   ;[style '(hscroll vscroll)]
    [paint-callback
     (lambda (canvas dc)
-      ;(send canvas init-auto-scrollbars (/ (car grid-size) 256) (/ (cdr grid-size) 256) 0 0)
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
+      (send dc set-brush dead)
       (canvas-draw dc grid)
       (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
       (send population-gauge set-label (string-append "Population: " (number->string population)))
