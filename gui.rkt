@@ -1,5 +1,5 @@
 #lang racket
-(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6) "conway.rkt")
+(require racket/gui (prefix-in htdp: 2htdp/image) (prefix-in rnrs: rnrs/base-6) (prefix-in rnrs: rnrs/exceptions-6))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax try
   (syntax-rules (catch)
