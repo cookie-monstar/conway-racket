@@ -82,14 +82,9 @@
           [(= c n) 1]
           [(< u n) 0]
           [else g])))
-(define (grid-add A B)
-  (map (lambda (a b) (map (lambda (x y) (+ x y)) a b)) A B))
+(define (grid-apply o . L)
+  (apply map (lambda R (apply map (lambda C (apply o C)) R)) L))
 (define conway-god (grid-god 2 3 3))
-(define (grid-or A B)
-  (map (lambda (a b) (map (lambda (x y) (cond ((and (= x 1) (= y 1)) 1)
-                                              ((or (and (= x 1) (= y 1)) (and (= x 0) (= y 0))) 1)
-                                              ((and (= x 0) (= y 0)) 0)))
-                          a b)) A B))
 (define (grid-n grid)
   (append (cdr grid) (list (car grid))))
 (define (grid-s grid)
@@ -105,9 +100,9 @@
 (define (get-toroid-neighbours grid)
   (define g grid)
   (begin
-    (set! g (foldr grid-add g (list (grid-w g) (grid-e g))))
-    (set! g (foldr grid-add g (list (grid-n g) (grid-s g))))
-    (grid-add g (map (lambda (row) (map - row)) grid))))
+    (set! g (grid-apply + g (grid-w g) (grid-e g)))
+    (set! g (grid-apply + g (grid-n g) (grid-s g)))
+    (grid-apply - g grid)))
 
 (define (get-neighbours grid)
   (cond
@@ -154,8 +149,8 @@
        [parent welcome-panel]
        [label "new  game"]
        [callback (lambda (button event)
-	                     (send welcome-frame delete-child welcome-wrap)
-						 (send welcome-frame add-child panels))]))
+                   (send welcome-frame delete-child welcome-wrap)
+                   (send welcome-frame add-child panels))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;loading frame
 (define load-panel
@@ -337,10 +332,10 @@
                    (set! grid-size '(256 . 256))
                    (send welcome-frame delete-child panels)
                    (send welcome-frame add-child welcome-wrap)
-				   (try (begin
-				      (send welcome-wrap delete-child welcome-panel)
-				      (send welcome-wrap add-child load-panel))
-					  (catch (void))))]))
+                   (try (begin
+                          (send welcome-wrap delete-child welcome-panel)
+                          (send welcome-wrap add-child load-panel))
+                        (catch (void))))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define thanku (grid-expand (rle->grid "11$b5obo3bo2b2o2b2o4bobo2bo$
@@ -369,33 +364,33 @@ $
        [height 256]))
 (define credits-canvas
   (new canvas%
-     [parent credits-frame]
-     [paint-callback
-      (lambda (canvas dc)
-        (set! cell-size 8)
-        (set! grid-size '(32 . 32))
-        (set! grid-type 0)
-        (set! grid nikhil-poorvi)
-        (canvas-draw dc grid)
-        (set! timer
-              (new timer%
-                   [interval 200]
-                   [notify-callback (lambda ()
-                                      (set! count (+ count 1))
-                                      (canvas-swap dc
-                                                   (cond
-                                                     [(< count 32)
-                                                      (append (cdr (grid-next (cons (make-list 32 0) (take grid count))))
-                                                              (drop grid count))]
-                                                     [(< count 40) (grid-next grid)]
-                                                     [(< count 45) thanku]
-                                                     [(< count 60) (append (cdr (grid-next (cons (make-list 32 0) (take grid (- count 40)))))
-													          (drop grid (- count 40)))]
-                                                     [else
-													 	(begin0
-														grid
-														(send timer stop)
-														(send credits-frame show #f))])))])))]))
+       [parent credits-frame]
+       [paint-callback
+        (lambda (canvas dc)
+          (set! cell-size 8)
+          (set! grid-size '(32 . 32))
+          (set! grid-type 0)
+          (set! grid nikhil-poorvi)
+          (canvas-draw dc grid)
+          (set! timer
+                (new timer%
+                     [interval 200]
+                     [notify-callback (lambda ()
+                                        (set! count (+ count 1))
+                                        (canvas-swap dc
+                                                     (cond
+                                                       [(< count 32)
+                                                        (append (cdr (grid-next (cons (make-list 32 0) (take grid count))))
+                                                                (drop grid count))]
+                                                       [(< count 40) (grid-next grid)]
+                                                       [(< count 45) thanku]
+                                                       [(< count 60) (append (cdr (grid-next (cons (make-list 32 0) (take grid (- count 40)))))
+                                                                             (drop grid (- count 40)))]
+                                                       [else
+                                                        (begin0
+                                                          grid
+                                                          (send timer stop)
+                                                          (send credits-frame show #f))])))])))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define end-game
   (new button%
@@ -437,19 +432,44 @@ $
 (define grid (grid-expand '() (car grid-size) (cdr grid-size)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
+(define left? #f)
+(define middle? #f)
+(define right? #f)
 (define canvas
   (new
    (class canvas%
      (define/override (on-event e)
        (define type (send e get-event-type))
+       (define x (quotient (send e get-x) cell-size))
+       (define y (quotient (send e get-y) cell-size))
        (cond [(eq? type 'left-down)
-              (let* ([x (quotient (send e get-x) cell-size)]
-                     [y (quotient (send e get-y) cell-size)])
-                (canvas-swap (send canvas get-dc)
-                             (list-set grid y
-                                       (list-set (list-ref grid y) x
-                                                 (- 1 (list-ref (list-ref grid y) x))))))]
-             [(not (member type '(left-up right-up right-down motion enter leave))) (displayln type)]))
+              (set! left? #t)
+              (canvas-swap
+               (send canvas get-dc)
+               (list-set
+                grid y
+                (list-set
+                 (list-ref grid y) x
+                 (- 1 (list-ref (list-ref grid y) x)))))]
+             [(eq? type 'left-up)
+              (set! left? #f)]
+             [(eq? type 'middle-down)
+              (set! middle? #t)
+              ()]
+             [(eq? type 'middle-up)
+              (set! middle #f)]
+             [(eq? type 'right-down)
+              (set! right? #t)]
+             [(eq? type 'right-up)
+              (set! right? #f)]
+             [(eq? type 'leave)
+              (set! left? #f)
+              (set! middle? #f)
+              (set! right? #f)]
+             [(eq? type 'enter) (void)]
+             [(eq? type 'move)
+              ]
+             [else (displayln type)]))
      (super-new))
    [parent panel-left]
    [min-width 768]
