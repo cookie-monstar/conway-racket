@@ -309,7 +309,7 @@
   (new choice%
        [parent settings-panel]
        [label "Grid type: "]
-       [choices (list "Closed" "Open, Bounded" "Open, Unbounded")]
+       [choices (list "Closed" "Open, Bounded" "Open")]
        [callback (lambda (choice type) (set! grid-type (send choice get-selection)))]))
 (define speed-time 100)
 (define generation-gauge
