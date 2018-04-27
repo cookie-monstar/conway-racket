@@ -336,8 +336,108 @@
                           (send welcome-wrap delete-child welcome-panel)
                           (send welcome-wrap add-child load-panel))
                         (catch (void))))]))
+(define size-choice
+  (new choice%
+       [parent settings-panel]
+       [label "Size: "]
+       [choices (list "3" "4" "6" "8" "12")]
+       [callback
+        (lambda (choice event)
+          (set! cell-size (list-ref '(3 4 6 8 12) (send choice get-selection)))
+          (when (send panels is-shown?)
+            (send canvas refresh-now)
+            (send canvas init-auto-scrollbars (* cell-size (car grid-size)) (* cell-size (cdr grid-size)) 0 0)))]))
+(define end-game
+  (new button%
+       [parent settings-panel]
+       [label "end game"]
+       [callback (lambda (button event)
+                   (send timer stop)
+                   (send welcome-frame show #f)
+                   (send credits-frame show #t))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define live (make-object brush% "BLACK" 'solid))
+(define dead (make-object brush% "WHITE" 'solid))
+(define kill (make-object brush% "GREEN" 'solid))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (canvas-draw dc grid-new)
+  (set! grid grid-new)
+  (set! population (apply + (map (lambda (row) (apply + row)) grid)))
+  (map (lambda (row)
+         (map (lambda (col)
+                (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
+                (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))
+              (range (car grid-size))))
+       (range (cdr grid-size))))
+(define (canvas-swap dc grid-new)
+  (map (lambda (row)
+         (map (lambda (col)
+                (cond
+                  [(= (list-ref (list-ref grid row) col) (list-ref (list-ref grid-new row) col)) (void)]
+                  [else (begin
+                          (send dc set-brush
+                                (if (= 1 (list-ref (list-ref grid-new row) col))
+                                    (begin (set! population (+ population 1)) live)
+                                    (begin (set! population (- population 1)) kill)))
+                          (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
+              (range (car grid-size))))
+       (range (cdr grid-size)))
+  (set! grid grid-new))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define grid (grid-expand '() (car grid-size) (cdr grid-size)))
+(define grid-offset '(0 0))
+(define drag-coords '())
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define timer #f)
+(define left? #f)
+(define canvas
+  (new
+   (class canvas%
+     (define/override (on-event e)
+       (define type (send e get-event-type))
+       (define x (quotient (send e get-x) cell-size))
+       (define y (quotient (send e get-y) cell-size))
+       (cond [(eq? type 'left-down)
+              (set! left? #t)
+              (canvas-swap
+               (send canvas get-dc)
+               (list-set
+                grid y
+                (list-set
+                 (list-ref grid y) x
+                 (- 1 (list-ref (list-ref grid y) x)))))]
+             [(eq? type 'left-up)
+              (set! left? #f)]
+             [(eq? type 'leave)
+              (set! left? #f)]
+             [(eq? type 'enter)
+              (void)]
+             [(eq? type 'motion)
+              ]
+             [else (displayln type)]))
+     (super-new))
+   [parent panel-left]
+   [min-width 768]
+   [min-height 768]
+   [style '(hscroll vscroll)]
+   [paint-callback
+    (lambda (canvas dc)
+      (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
+      (send dc set-brush dead)
+      (canvas-draw dc grid)
+      (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
+      (send population-gauge set-label (string-append "Population: " (number->string population)))
+      (set! timer
+            (new timer%
+                 [notify-callback (lambda ()
+                                    (if (send welcome-frame is-shown?)
+                                        (begin
+                                          (canvas-swap dc (grid-next grid))
+                                          (set! generation (+ generation 1))
+                                          (send generation-gauge set-label (string-append "Generation: " (number->string generation)))
+                                          (send population-gauge set-label (string-append "Population: " (number->string population))))
+                                        (send timer stop)))])))]))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (define thanku (grid-expand (rle->grid "11$b5obo3bo2b2o2b2o4bobo2bo$
 3bo3bo3bobo2bobobo3bobobo$
 3bo3b5ob4obo2bo2bob2o$
@@ -391,103 +491,3 @@ $
                                                           grid
                                                           (send timer stop)
                                                           (send credits-frame show #f))])))])))]))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define end-game
-  (new button%
-       [parent settings-panel]
-       [label "end game"]
-       [callback (lambda (button event)
-                   (send timer stop)
-                   (send welcome-frame show #f)
-                   (send credits-frame show #t))]))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define live (make-object brush% "BLACK" 'solid))
-(define dead (make-object brush% "WHITE" 'solid))
-(define kill (make-object brush% "GREEN" 'solid))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (canvas-draw dc grid-new)
-  (set! grid grid-new)
-  (set! population (apply + (map (lambda (row) (apply + row)) grid)))
-  (map (lambda (row)
-         (map (lambda (col)
-                (send dc set-brush (if (= 1 (list-ref (list-ref grid row) col)) live dead))
-                (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))
-              (range (car grid-size))))
-       (range (cdr grid-size))))
-(define (canvas-swap dc grid-new)
-  (map (lambda (row)
-         (map (lambda (col)
-                (cond
-                  [(= (list-ref (list-ref grid row) col) (list-ref (list-ref grid-new row) col)) (void)]
-                  [else (begin
-                          (send dc set-brush
-                                (if (= 1 (list-ref (list-ref grid-new row) col))
-                                    (begin (set! population (+ population 1)) live)
-                                    (begin (set! population (- population 1)) kill)))
-                          (send dc draw-rectangle (* cell-size col) (* cell-size row) cell-size cell-size))]))
-              (range (car grid-size))))
-       (range (cdr grid-size)))
-  (set! grid grid-new))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define grid (grid-expand '() (car grid-size) (cdr grid-size)))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define timer #f)
-(define left? #f)
-(define middle? #f)
-(define right? #f)
-(define canvas
-  (new
-   (class canvas%
-     (define/override (on-event e)
-       (define type (send e get-event-type))
-       (define x (quotient (send e get-x) cell-size))
-       (define y (quotient (send e get-y) cell-size))
-       (cond [(eq? type 'left-down)
-              (set! left? #t)
-              (canvas-swap
-               (send canvas get-dc)
-               (list-set
-                grid y
-                (list-set
-                 (list-ref grid y) x
-                 (- 1 (list-ref (list-ref grid y) x)))))]
-             [(eq? type 'left-up)
-              (set! left? #f)]
-             [(eq? type 'middle-down)
-              (set! middle? #t)
-              ()]
-             [(eq? type 'middle-up)
-              (set! middle #f)]
-             [(eq? type 'right-down)
-              (set! right? #t)]
-             [(eq? type 'right-up)
-              (set! right? #f)]
-             [(eq? type 'leave)
-              (set! left? #f)
-              (set! middle? #f)
-              (set! right? #f)]
-             [(eq? type 'enter) (void)]
-             [(eq? type 'move)
-              ]
-             [else (displayln type)]))
-     (super-new))
-   [parent panel-left]
-   [min-width 768]
-   [min-height 768]
-   [paint-callback
-    (lambda (canvas dc)
-      (send dc set-pen (new pen% [color "black"] [width 0] [style 'solid]))
-      (send dc set-brush dead)
-      (canvas-draw dc grid)
-      (send dc set-pen (new pen% [color "black"] [width 0] [style 'transparent]))
-      (send population-gauge set-label (string-append "Population: " (number->string population)))
-      (set! timer
-            (new timer%
-                 [notify-callback (lambda ()
-                                    (if (send welcome-frame is-shown?)
-                                        (begin
-                                          (canvas-swap dc (grid-next grid))
-                                          (set! generation (+ generation 1))
-                                          (send generation-gauge set-label (string-append "Generation: " (number->string generation)))
-                                          (send population-gauge set-label (string-append "Population: " (number->string population))))
-                                        (send timer stop)))])))]))
