@@ -195,10 +195,7 @@
                                         (list-ref files (send load-file get-selection)))))
                    (set! grid-size (cons (max (car grid-size) (length (car grid))) (max (cdr grid-size) (length grid))))
                    (set! grid
-                         (grid-move
-                          (grid-expand grid (car grid-size) (cdr grid-size))
-                          (quotient (- (car grid-size) (length (car grid))) 2)
-                          (quotient (- (cdr grid-size) (length grid)) 2)))
+                          (grid-expand grid (car grid-size) (cdr grid-size)))
                    (send welcome-frame add-child panels))]))
 (define load-game
   (new button%
