@@ -159,13 +159,13 @@
        [style '(deleted)]
        [alignment '(center center)]))
 (define folders (map path->string (directory-list "hangar")))
-(define files (map path->string (directory-list (string-append "hangar/" (list-ref folders 9)))))
+(define files (map path->string (directory-list (string-append "hangar/" (list-ref folders 10)))))
 (define load-folder
   (new choice%
        [parent load-panel]
        [label "Folder: "]
        [choices folders]
-       [selection 9]
+       [selection 10]
        [callback (lambda (choice event)
                    (send load-panel delete-child load-file)
                    (send load-panel delete-child load-button)
@@ -181,7 +181,7 @@
        [parent load-panel]
        [label "File: "]
        [choices files]
-       [selection 10]))
+       [selection 9]))
 (define load-button
   (new button%
        [parent load-panel]
@@ -483,8 +483,8 @@ $
                                                         (append (cdr (grid-next (cons (make-list 32 0) (take grid count))))
                                                                 (drop grid count))]
                                                        [(< count 40) (grid-next grid)]
-                                                       [(< count 45) thanku]
-                                                       [(< count 60) (append (cdr (grid-next (cons (make-list 32 0) (take grid (- count 40)))))
+                                                       [(< count 45) (begin (canvas-draw dc thanku) thanku)]
+                                                       [(< count 72) (append (cdr (grid-next (cons (make-list 32 0) (take grid (- count 40)))))
                                                                              (drop grid (- count 40)))]
                                                        [else
                                                         (begin0
