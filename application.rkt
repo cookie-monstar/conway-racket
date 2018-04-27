@@ -195,7 +195,7 @@
                                         (list-ref files (send load-file get-selection)))))
                    (set! grid-size (cons (max (car grid-size) (length (car grid))) (max (cdr grid-size) (length grid))))
                    (set! grid
-                          (grid-expand grid (car grid-size) (cdr grid-size)))
+                         (grid-expand grid (car grid-size) (cdr grid-size)))
                    (send welcome-frame add-child panels))]))
 (define load-game
   (new button%
@@ -340,8 +340,10 @@
        [choices (list "3" "4" "6" "8" "12")]
        [callback
         (lambda (choice event)
-          (set! cell-size (list-ref '(3 4 6 8 12) (send choice get-selection)))
-          (when (send panels is-shown?)
+          (begin
+            (send timer stop)
+            (send play-button set-label play-bmp)
+            (set! cell-size (list-ref '(3 4 6 8 12) (send choice get-selection)))
             (send canvas refresh-now)
             (send canvas init-auto-scrollbars (* cell-size (car grid-size)) (* cell-size (cdr grid-size)) 0 0)))]))
 (define end-game
@@ -386,7 +388,6 @@
 (define drag-coords '())
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define timer #f)
-(define left? #f)
 (define canvas
   (new
    (class canvas%
@@ -394,24 +395,14 @@
        (define type (send e get-event-type))
        (define x (quotient (send e get-x) cell-size))
        (define y (quotient (send e get-y) cell-size))
-       (cond [(eq? type 'left-down)
-              (set! left? #t)
-              (canvas-swap
-               (send canvas get-dc)
-               (list-set
-                grid y
-                (list-set
-                 (list-ref grid y) x
-                 (- 1 (list-ref (list-ref grid y) x)))))]
-             [(eq? type 'left-up)
-              (set! left? #f)]
-             [(eq? type 'leave)
-              (set! left? #f)]
-             [(eq? type 'enter)
-              (void)]
-             [(eq? type 'motion)
-              ]
-             [else (displayln type)]))
+       (when (eq? type 'left-down)
+         (canvas-swap
+          (send canvas get-dc)
+          (list-set
+           grid y
+           (list-set
+            (list-ref grid y) x
+            (- 1 (list-ref (list-ref grid y) x)))))))
      (super-new))
    [parent panel-left]
    [min-width 768]
